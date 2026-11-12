@@ -1,244 +1,201 @@
 /**
- * server.js  –  IDSA Express Backend
+ * server.js
+ * IDSA Express backend
  *
  * Routes:
- *   POST /api/scan            → spawns scan_runner.py --scan, streams JSON back
- *   POST /api/generate-report → spawns scan_runner.py --report, saves to MOCK_USB
- *   GET  /api/reports         → list files inside MOCK_USB/IDSA_REPORTS/
- *   GET  /api/reports/:id/:file → download a specific report file
+ *   POST /api/approve          issue a session token after physical consent
+ *   POST /api/scan             run full scan, returns JSON
+ *   POST /api/generate-report  generate report files, save to MOCK_USB
+ *   GET  /api/reports          list saved report folders
+ *   GET  /api/reports/:id/:file download a report file
+ *   GET  /api/health           health check
  *
- * Start:  node server.js
+ * Start: node server.js
  */
 
-const express  = require("express");
-const cors     = require("cors");
-const path     = require("path");
-const fs       = require("fs");
-const { spawn } = require("child_process");
+require("dotenv").config({ path: require("path").resolve(__dirname, "../.env") });
 
-// ── Config ────────────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 5000;
+const express      = require("express");
+const cors         = require("cors");
+const path         = require("path");
+const fs           = require("fs");
+const os           = require("os");
+const { spawn }    = require("child_process");
+const jwt          = require("jsonwebtoken");
+const rateLimit    = require("express-rate-limit");
+const helmet       = require("helmet");
 
-// Absolute paths – adjust if your folder layout changes
-const PROJECT_ROOT = path.resolve(__dirname, "..");
-const PYTHON_RUNNER = path.join(
-  PROJECT_ROOT,
-  "IDSA_Existing",
-  "runner",
-  "scan_runner.py"
-);
-// Python inside the venv (Windows path); falls back to system python
-const VENV_PYTHON = path.join(
-  PROJECT_ROOT,
-  "IDSA_Existing",
-  ".venv",
-  "Scripts",
-  "python.exe"
-);
-const PYTHON_BIN = fs.existsSync(VENV_PYTHON) ? VENV_PYTHON : "python";
+const app  = express();
+const PORT = process.env.SERVER_PORT || 5000;
 
-// Mock-USB folder (simulates an external USB drive)
+const JWT_SECRET          = process.env.JWT_SECRET;
+const REQUIRE_APPROVAL    = process.env.REQUIRE_USER_APPROVAL !== "false";
+
+if (!JWT_SECRET) {
+  console.error("FATAL: JWT_SECRET is not set. Copy .env.example to .env and set a secret.");
+  process.exit(1);
+}
+
+// Paths
+const PROJECT_ROOT  = path.resolve(__dirname, "..");
+const PYTHON_RUNNER = path.join(PROJECT_ROOT, "IDSA_Existing", "runner", "scan_runner.py");
+const VENV_PYTHON   = path.join(PROJECT_ROOT, "IDSA_Existing", ".venv", "Scripts", "python.exe");
+const PYTHON_BIN    = process.env.PYTHON_PATH
+  ? path.resolve(PROJECT_ROOT, process.env.PYTHON_PATH)
+  : fs.existsSync(VENV_PYTHON) ? VENV_PYTHON : "python";
+
 const MOCK_USB_DIR = path.join(PROJECT_ROOT, "MOCK_USB", "IDSA_REPORTS");
 fs.mkdirSync(MOCK_USB_DIR, { recursive: true });
 
-// ── App setup ─────────────────────────────────────────────────────────────────
-const app = express();
-app.use(cors());
-app.use(express.json());
+// Security middleware
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json({ limit: "2mb" }));
 
-// ── Utility: run a Python command and collect stdout ─────────────────────────
-/**
- * spawnPython(args)
- *
- * Spawns  `python scan_runner.py ...args`
- * Returns a Promise that resolves with the parsed JSON object from stdout.
- * stderr lines are forwarded to Node's console so you can watch progress.
- */
+// Rate limiting
+const scanLimiter = rateLimit({ windowMs: 60_000, max: 10, message: { error: "Too many requests." } });
+const authLimiter = rateLimit({ windowMs: 60_000, max: 20, message: { error: "Too many requests." } });
+
+// JWT middleware
+function verifyToken(req, res, next) {
+  const header = req.headers["authorization"];
+  if (!header) return res.status(401).json({ error: "Missing token" });
+  const token = header.split(" ")[1];
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(403).json({ error: "Invalid or expired token" });
+    req.user = decoded;
+    next();
+  });
+}
+
+// Python spawner
 function spawnPython(args, timeoutMs = 120_000) {
   return new Promise((resolve, reject) => {
-    console.log(`[Node] Spawning: ${PYTHON_BIN} ${PYTHON_RUNNER} ${args.join(" ")}`);
-
     const child = spawn(PYTHON_BIN, [PYTHON_RUNNER, ...args], {
-      cwd: path.dirname(PYTHON_RUNNER), // run from runner/ directory
+      cwd: path.dirname(PYTHON_RUNNER),
     });
 
-    let stdoutBuf = "";
-    let stderrBuf = "";
+    let stdout = "";
+    let stderr = "";
 
-    child.stdout.on("data", (chunk) => {
-      stdoutBuf += chunk.toString();
+    child.stdout.on("data", d => (stdout += d.toString()));
+    child.stderr.on("data", d => {
+      const line = d.toString().trim();
+      if (line) console.log(`[Python] ${line}`);
+      stderr += line + "\n";
     });
 
-    child.stderr.on("data", (chunk) => {
-      const line = chunk.toString().trim();
-      if (line) console.log(`[Python] ${line}`); // stream progress to Node console
-      stderrBuf += line + "\n";
-    });
-
-    // Safety timeout
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
-      reject(new Error("Python process timed out after " + timeoutMs + "ms"));
+      reject(new Error("Python process timed out"));
     }, timeoutMs);
 
-    child.on("close", (code) => {
+    child.on("close", code => {
       clearTimeout(timer);
-      if (code !== 0) {
-        return reject(
-          new Error(`Python exited with code ${code}. stderr: ${stderrBuf.slice(0, 500)}`)
-        );
-      }
+      if (code !== 0) return reject(new Error(`Python exited ${code}: ${stderr.slice(0, 500)}`));
       try {
-        // The runner emits exactly ONE JSON object to stdout
-        const json = JSON.parse(stdoutBuf.trim());
-        resolve(json);
-      } catch (parseErr) {
-        reject(
-          new Error(
-            `Failed to parse Python JSON output: ${parseErr.message}\n` +
-            `Raw stdout: ${stdoutBuf.slice(0, 500)}`
-          )
-        );
+        resolve(JSON.parse(stdout.trim()));
+      } catch (e) {
+        reject(new Error(`Invalid JSON from Python: ${stdout.slice(0, 200)}`));
       }
     });
 
-    child.on("error", (err) => {
+    child.on("error", err => {
       clearTimeout(timer);
-      reject(new Error(`Failed to start Python process: ${err.message}`));
+      reject(new Error(`Could not start Python: ${err.message}`));
     });
   });
 }
 
-// ── POST /api/scan ────────────────────────────────────────────────────────────
-/**
- * Triggers a full IDSA scan.
- * The Python runner calls all existing scanner modules and returns JSON.
- *
- * Response body shape:
- * {
- *   "scan_id": "scan_20250112_153045",
- *   "timestamp": "...",
- *   "devices": [ { ip, mac, vendor, open_ports, risk_score, cves } ],
- *   "system_info": {...},
- *   "usb_devices": [...],
- *   "vulnerabilities": [...]
- * }
- */
-app.post("/api/scan", async (req, res) => {
-  console.log("[Node] /api/scan – starting scan …");
+// POST /api/approve
+app.post("/api/approve", authLimiter, (req, res) => {
+  const { approval } = req.body;
+  if (REQUIRE_APPROVAL && approval !== "IAGREE") {
+    return res.status(403).json({ error: "Physical approval not given." });
+  }
+  const token = jwt.sign({ host: os.hostname() }, JWT_SECRET, { expiresIn: "8h" });
+  res.json({ token });
+});
+
+// POST /api/scan
+app.post("/api/scan", scanLimiter, verifyToken, async (req, res) => {
+  console.log("[Node] /api/scan requested");
   try {
-    const scanResult = await spawnPython(["--scan"]);
-    res.status(200).json({ success: true, data: scanResult });
+    const result = await spawnPython(["--scan"]);
+    res.json({ success: true, data: result });
   } catch (err) {
     console.error("[Node] Scan error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// ── POST /api/generate-report ─────────────────────────────────────────────────
-/**
- * Generates HTML/JSON/PDF reports and saves them to MOCK_USB.
- *
- * Request body (optional):
- *   { "scanData": { ...the scan JSON object... } }
- *
- * Response body shape:
- * {
- *   "status": "success",
- *   "scan_id": "20250112-153045-abc12345",
- *   "report_dir": "...",
- *   "files": ["...", "...", "..."],
- *   "mock_usb": "..."
- * }
- */
-app.post("/api/generate-report", async (req, res) => {
-  console.log("[Node] /api/generate-report – generating report …");
+// POST /api/generate-report
+app.post("/api/generate-report", verifyToken, async (req, res) => {
+  console.log("[Node] /api/generate-report requested");
   try {
     const args = ["--report"];
-
-    // If the client sends scan data, pass it Base64-encoded to avoid shell escaping issues
-    if (req.body && req.body.scanData) {
+    if (req.body?.scanData) {
       const encoded = Buffer.from(JSON.stringify(req.body.scanData)).toString("base64");
       args.push("--scan-data", encoded);
     }
-
-    const reportMeta = await spawnPython(args);
-    res.status(200).json({ success: true, data: reportMeta });
+    const result = await spawnPython(args);
+    res.json({ success: true, data: result });
   } catch (err) {
     console.error("[Node] Report error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// ── GET /api/reports ──────────────────────────────────────────────────────────
-/**
- * Lists all saved report folders inside MOCK_USB/IDSA_REPORTS/.
- */
-app.get("/api/reports", (req, res) => {
+// GET /api/reports
+app.get("/api/reports", verifyToken, (req, res) => {
   try {
     const folders = fs
       .readdirSync(MOCK_USB_DIR, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => ({
-        id: d.name,
-        path: path.join(MOCK_USB_DIR, d.name),
+      .filter(d => d.isDirectory())
+      .map(d => ({
+        id:    d.name,
         files: fs.readdirSync(path.join(MOCK_USB_DIR, d.name)),
       }))
-      .sort((a, b) => b.id.localeCompare(a.id)); // newest first
-
-    res.status(200).json({ success: true, data: folders });
+      .sort((a, b) => b.id.localeCompare(a.id));
+    res.json({ success: true, data: folders });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// ── GET /api/reports/:id/:file ────────────────────────────────────────────────
-/**
- * Downloads a specific file from a report folder.
- * Example: GET /api/reports/20250112-153045-abc12345/report_20250112-153045-abc12345.html
- */
-app.get("/api/reports/:id/:file", (req, res) => {
-  const { id, file } = req.params;
-  // Sanitize to prevent path traversal
-  const safeId   = path.basename(id);
-  const safeFile = path.basename(file);
+// GET /api/reports/:id/:file
+app.get("/api/reports/:id/:file", verifyToken, (req, res) => {
+  const safeId   = path.basename(req.params.id);
+  const safeFile = path.basename(req.params.file);
   const filePath = path.join(MOCK_USB_DIR, safeId, safeFile);
-
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ success: false, error: "File not found" });
-  }
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File not found" });
   res.download(filePath);
 });
 
-// ── Health check ──────────────────────────────────────────────────────────────
+// GET /api/health
 app.get("/api/health", (req, res) => {
   res.json({
-    status: "ok",
-    python_runner: PYTHON_RUNNER,
-    python_bin: PYTHON_BIN,
+    status:  "ok",
+    host:    os.hostname(),
+    python:  PYTHON_BIN,
     mock_usb: MOCK_USB_DIR,
-    timestamp: new Date().toISOString(),
+    time:    new Date().toISOString(),
   });
 });
 
-// ── Serve React build in production (optional) ────────────────────────────────
-// When running in production, serve the React build directory from the Node server.
-// In development, React runs on its own port (3000) via `npm start` in /frontend.
+// Serve React build
 const REACT_BUILD = path.join(PROJECT_ROOT, "frontend", "build");
 if (fs.existsSync(REACT_BUILD)) {
   app.use(express.static(REACT_BUILD));
-  // Catch-all: for any route not matched above, serve React's index.html
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(REACT_BUILD, "index.html"));
-  });
-  console.log(`📦 Serving React build from ${REACT_BUILD}`);
+  app.get("*", (req, res) =>
+    res.sendFile(path.join(REACT_BUILD, "index.html"))
+  );
+  console.log(`[Node] Serving React build from ${REACT_BUILD}`);
 }
 
-// ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`\n🚀 IDSA Backend running on http://localhost:${PORT}`);
-  console.log(`   Python runner : ${PYTHON_RUNNER}`);
-  console.log(`   Python binary : ${PYTHON_BIN}`);
-  console.log(`   Mock USB dir  : ${MOCK_USB_DIR}\n`);
+  console.log(`[Node] IDSA backend running on http://localhost:${PORT}`);
+  console.log(`[Node] Python runner: ${PYTHON_RUNNER}`);
+  console.log(`[Node] Python binary: ${PYTHON_BIN}`);
+  console.log(`[Node] Mock USB dir:  ${MOCK_USB_DIR}`);
 });
-

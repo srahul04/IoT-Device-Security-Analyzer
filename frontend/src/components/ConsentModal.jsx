@@ -1,30 +1,43 @@
 // src/components/ConsentModal.jsx
-//
-// Renders a full-screen consent gate.
-// User MUST type "IAGREE" (case-insensitive) before proceeding.
+// Full-screen authorization gate. The user must type IAGREE exactly.
+// On success it calls POST /api/approve, receives a JWT, and passes it to the parent.
 import React, { useState } from "react";
 
-export default function ConsentModal({ onAgree }) {
+export default function ConsentModal({ onApproved }) {
   const [input,   setInput]   = useState("");
-  const [shaking, setShaking] = useState(false); // animation for wrong input
+  const [shaking, setShaking] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState("");
 
-  const REQUIRED_PHRASE = "IAGREE";
-  const isMatch = input.trim().toUpperCase() === REQUIRED_PHRASE;
+  const isMatch = input.trim().toUpperCase() === "IAGREE";
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isMatch) {
-      onAgree();
-    } else {
-      // Shake the modal on wrong input
+    if (!isMatch) {
       setShaking(true);
       setTimeout(() => setShaking(false), 600);
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const res  = await fetch("/api/approve", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ approval: "IAGREE" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Approval rejected");
+      onApproved(json.token);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-cyber-bg/95 backdrop-blur-sm p-4">
-      {/* Grid overlay */}
       <div
         className="absolute inset-0 opacity-5 pointer-events-none"
         style={{
@@ -34,21 +47,12 @@ export default function ConsentModal({ onAgree }) {
         }}
       />
 
-      {/* Modal card */}
       <div
-        className={`
-          relative cyber-card max-w-lg w-full border-cyber-accent/30
-          transition-transform duration-150
-          ${shaking ? "animate-[shake_0.5s_ease-in-out]" : ""}
-        `}
-        style={{
-          boxShadow: "0 0 60px #00d4ff22, 0 0 120px #00d4ff11",
-        }}
+        className={`relative cyber-card max-w-lg w-full border-cyber-accent/30 transition-transform duration-150 ${shaking ? "animate-[shake_0.5s_ease-in-out]" : ""}`}
+        style={{ boxShadow: "0 0 60px #00d4ff22, 0 0 120px #00d4ff11" }}
       >
-        {/* Top accent line */}
         <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-cyber-accent to-transparent rounded-t-xl" />
 
-        {/* Shield icon */}
         <div className="flex justify-center mb-5">
           <div className="relative w-20 h-20 rounded-2xl bg-cyber-accent/10 border border-cyber-accent/30 flex items-center justify-center">
             <svg viewBox="0 0 24 24" className="w-10 h-10 fill-cyber-accent" xmlns="http://www.w3.org/2000/svg">
@@ -58,7 +62,6 @@ export default function ConsentModal({ onAgree }) {
           </div>
         </div>
 
-        {/* Title */}
         <h1 className="text-2xl font-bold text-center text-cyber-text tracking-widest uppercase mb-1">
           Authorization Required
         </h1>
@@ -66,22 +69,18 @@ export default function ConsentModal({ onAgree }) {
           IoT Device Security Analyzer
         </p>
 
-        {/* Disclaimer */}
         <div className="bg-cyber-bg rounded-lg border border-cyber-border p-4 mb-6 text-sm text-cyber-muted leading-relaxed">
-          <p className="text-cyber-warning font-semibold mb-2">⚠ LEGAL DISCLAIMER</p>
+          <p className="text-cyber-warning font-semibold mb-2">LEGAL NOTICE</p>
           <p>
-            This tool is intended for <span className="text-cyber-text font-semibold">educational and
-            authorized security testing purposes only</span>. You must have explicit
-            written permission to scan any network or device you do not own.
+            This tool is for <span className="text-cyber-text font-semibold">authorized security testing and educational use only</span>.
+            You must have explicit written permission to scan any network or device you do not own.
           </p>
           <p className="mt-2">
-            Unauthorized use may violate the Computer Fraud and Abuse Act (CFAA)
-            and similar laws. The developers assume <span className="text-cyber-text font-semibold">no liability</span> for
-            any misuse or damage caused by this software.
+            Unauthorized use may violate the Computer Fraud and Abuse Act and similar laws.
+            The author assumes <span className="text-cyber-text font-semibold">no liability</span> for misuse.
           </p>
         </div>
 
-        {/* Consent input */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-mono text-cyber-muted mb-2 uppercase tracking-widest">
@@ -106,29 +105,29 @@ export default function ConsentModal({ onAgree }) {
             />
           </div>
 
+          {error && <p className="text-cyber-danger text-xs font-mono">{error}</p>}
+
           <button
             type="submit"
-            disabled={!isMatch}
+            disabled={!isMatch || loading}
             className={`
               w-full py-3 rounded-lg font-bold tracking-widest uppercase text-sm
               transition-all duration-200
-              ${isMatch
+              ${isMatch && !loading
                 ? "btn-primary cursor-pointer"
                 : "bg-cyber-border text-cyber-muted cursor-not-allowed opacity-50"
               }
             `}
           >
-            {isMatch ? "✓ Authorize & Proceed" : "Enter Passphrase to Continue"}
+            {loading ? "Verifying..." : isMatch ? "Authorize and Proceed" : "Enter Passphrase to Continue"}
           </button>
         </form>
 
-        {/* Bottom warning */}
         <p className="text-center text-xs text-cyber-muted mt-4 font-mono">
           By proceeding you accept all legal and ethical responsibility.
         </p>
       </div>
 
-      {/* Keyframe for shake animation (injected inline) */}
       <style>{`
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
@@ -141,4 +140,3 @@ export default function ConsentModal({ onAgree }) {
     </div>
   );
 }
-

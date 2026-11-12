@@ -1,184 +1,215 @@
 # IoT Device Security Analyzer (IDSA)
 
-> **A full-stack cybersecurity tool** — Python scanner modules wrapped in a Node.js Express API and a dark-themed React dashboard.
+A portable, web-based security scanner for IoT networks. Plug the tool into a USB drive, run `launch.bat` on any Windows machine, and get a full security report saved back to the drive.
+
+**Author: Rahul S**
+
+---
 
 ![Dashboard](Screenshots/Final.png)
 
 ---
 
-## 🏗 Architecture
+## How it works
+
+The tool has three layers:
+
+1. **Python scanner** (`IDSA_Existing/`) - performs network discovery, port scanning, CVE mapping, system inspection, and USB enumeration.
+2. **Node.js backend** (`backend/`) - Express API that receives requests from the UI, spawns the Python scanner, and saves reports to the USB drive.
+3. **React frontend** (`frontend/`) - dark-themed web UI served by the backend. Opens in the user's browser automatically.
 
 ```
-┌──────────────────────┐     HTTP/JSON      ┌────────────────────────┐
-│   React Frontend     │ ◄────────────────► │   Node.js Backend      │
-│   localhost:3000     │   (proxied in dev) │   localhost:5000       │
-└──────────────────────┘                    └────────┬───────────────┘
-                                                     │ child_process.spawn
-                                                     ▼
-                                       ┌─────────────────────────────┐
-                                       │  IDSA_Existing/runner/      │
-                                       │  scan_runner.py             │
-                                       └─────────┬───────────────────┘
-                                                 │ imports
-                                    ┌────────────▼──────────────────┐
-                                    │  Python Scanner Modules        │
-                                    │  network_scanner.py            │
-                                    │  system_scanner.py             │
-                                    │  usb_scanner.py                │
-                                    │  cve_scanner.py                │
-                                    │  config_scanner.py             │
-                                    │  report_generator.py           │
-                                    └────────────────────────────────┘
-                                                 │ reports saved to
-                                    ┌────────────▼──────────────────┐
-                                    │  MOCK_USB/IDSA_REPORTS/        │
-                                    │  (simulated USB drive)         │
-                                    └────────────────────────────────┘
+React UI  <-->  Node/Express API  <-->  Python Scanners  -->  MOCK_USB/IDSA_REPORTS/
 ```
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 IoT Device Security Analyzer (IDSA)/
-│
-├── IDSA_Existing/              ← Original Python scanner (untouched)
-│   ├── runner/
-│   │   └── scan_runner.py      ← CLI bridge: Node ↔ Python
-│   ├── main.py                 ← Original Tkinter GUI (still works)
-│   ├── network_scanner.py
-│   ├── system_scanner.py
-│   ├── usb_scanner.py
-│   ├── cve_scanner.py
-│   ├── config_scanner.py
-│   └── report_generator.py
-│
-├── assets/
-│   └── cve_database.json       ← Local CVE database (13 real CVEs)
-│
-├── backend/                    ← Node.js Express API
-│   ├── server.js
-│   └── package.json
-│
-├── frontend/                   ← React + Tailwind CSS UI
-│   ├── public/index.html
-│   ├── tailwind.config.js
-│   ├── postcss.config.js
-│   └── src/
-│       ├── App.jsx
-│       ├── index.js / index.css
-│       └── components/
-│           ├── ConsentModal.jsx   ← "IAGREE" gate
-│           ├── Dashboard.jsx      ← Animated radar + scan trigger
-│           ├── Results.jsx        ← 4-tab results view
-│           ├── DeviceCard.jsx     ← Expandable device card
-│           ├── Header.jsx
-│           └── Footer.jsx
-│
-├── MOCK_USB/
-│   └── IDSA_REPORTS/           ← Reports saved here (simulated USB)
-│
-├── Screenshots/                ← UI screenshots
-└── .gitignore
+|
++-- IDSA_Existing/              Python scanner modules
+|   +-- runner/
+|   |   +-- scan_runner.py      CLI bridge between Node and Python
+|   +-- main.py
+|   +-- network_scanner.py
+|   +-- system_scanner.py
+|   +-- usb_scanner.py
+|   +-- cve_scanner.py
+|   +-- config_scanner.py
+|   +-- report_generator.py
+|   +-- requirements.txt
+|
++-- assets/
+|   +-- cve_database.json       Local CVE reference database
+|
++-- backend/                    Node.js Express API
+|   +-- server.js
+|   +-- package.json
+|
++-- frontend/                   React + Tailwind UI
+|   +-- src/
+|   |   +-- App.jsx
+|   |   +-- components/
+|   |       +-- ConsentModal.jsx
+|   |       +-- Dashboard.jsx
+|   |       +-- Results.jsx
+|   |       +-- DeviceCard.jsx
+|   |       +-- Header.jsx
+|   |       +-- Footer.jsx
+|   +-- public/
+|   +-- package.json
+|
++-- MOCK_USB/
+|   +-- IDSA_REPORTS/           Reports are saved here (simulates USB storage)
+|
++-- docs/
+|   +-- screenshots/            UI screenshots
+|
++-- Screenshots/                Reference screenshots for README
++-- launch.bat                  Windows launcher (portable)
++-- launch.ps1                  PowerShell launcher (portable)
++-- .env                        Environment variables (JWT secret, port) - not committed
++-- .env.example                Template for .env
++-- README.md
 ```
 
 ---
 
-## 🚀 Quick Start
+## Portable USB Setup
+
+This tool is designed to run from a USB drive without being installed on the target machine. The only prerequisites on the target machine are **Python 3.10+** and **Node.js 18+**.
+
+If you want a fully self-contained drive (no install needed), place portable builds of Python and Node inside `tools/python/` and `tools/node/` on the drive. The launcher will detect and use them automatically.
+
+### Steps
+
+1. Copy the entire project folder to your USB drive.
+2. Set a secure JWT secret in `.env` (copy from `.env.example` and fill in the secret).
+3. Install dependencies once on a trusted machine:
+   ```
+   cd backend && npm install
+   cd ../frontend && npm install && npm run build
+   ```
+4. Plug the USB into the target machine and double-click `launch.bat`.
+5. The browser opens at `http://localhost:5000`.
+6. Type `IAGREE` in the authorization modal.
+7. Click **Start Scan**.
+8. Click **Download Report** when the scan completes.
+9. Reports are saved to `MOCK_USB/IDSA_REPORTS/<scan-id>/` on the USB.
+
+---
+
+## Development Setup
 
 ### Prerequisites
-- **Python 3.10+** with the packages in `IDSA_Existing/requirements.txt`
-- **Node.js 18+** and npm
 
-### 1 — Install Python dependencies
+- Python 3.10 or later
+- Node.js 18 or later and npm
+
+### 1. Install Python dependencies
+
 ```bash
 cd IDSA_Existing
 python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# macOS/Linux:
-source .venv/bin/activate
+.venv\Scripts\activate        # Windows
 pip install -r requirements.txt
 ```
 
-### 2 — Install Node dependencies
+### 2. Install Node dependencies
 
 ```bash
-# Backend
-cd backend
-npm install
-
-# Frontend
-cd ../frontend
-npm install
+cd backend && npm install
+cd ../frontend && npm install
 ```
 
-### 3 — Run (Development Mode — two terminals)
+### 3. Set up environment
 
-**Terminal 1 · Node backend**
+```bash
+copy .env.example .env
+```
+
+Open `.env` and set a strong random value for `JWT_SECRET`. Generate one with:
+
+```powershell
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$b = New-Object byte[] 32; $rng.GetBytes($b)
+[Convert]::ToBase64String($b)
+```
+
+### 4. Run in development mode
+
+Terminal 1 - backend:
 ```bash
 cd backend
-npm start          # http://localhost:5000
+npm start
 ```
 
-**Terminal 2 · React frontend**
+Terminal 2 - frontend (hot reload):
 ```bash
 cd frontend
-npm start          # http://localhost:3000
+npm start
 ```
 
-Open **http://localhost:3000** in your browser.
+Open `http://localhost:3000` in your browser.
 
-### 4 — Run (Production Mode — single terminal)
+### 5. Run in production mode
 
 ```bash
-# Build the React app first
-cd frontend
-npm run build
-
-# Then start just the Node server — it serves both API + React
-cd ../backend
-npm start          # http://localhost:5000 serves everything
+cd frontend && npm run build
+cd ../backend && npm start
 ```
 
----
-
-## 🔌 API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/scan` | Run full scan; returns JSON with device list |
-| `POST` | `/api/generate-report` | Generate HTML/JSON/PDF → `MOCK_USB/IDSA_REPORTS/` |
-| `GET`  | `/api/reports` | List saved report folders |
-| `GET`  | `/api/reports/:id/:file` | Download a report file |
-| `GET`  | `/api/health` | Health check / path info |
+Open `http://localhost:5000`.
 
 ---
 
-## 🛡 Features
+## API Reference
 
-- **Consent Gate** — requires typing `IAGREE` before any scan
-- **Network Discovery** — ping sweep + concurrent port scan of LAN
-- **CVE Mapping** — maps open ports to known CVE IDs (EternalBlue, BlueKeep, etc.)
-- **Configuration Analysis** — detects weak credentials, exposed SMB/Telnet/RDP
-- **System & USB Info** — OS details and connected USB device enumeration  
-- **Report Export** — JSON + HTML + PDF saved to `MOCK_USB/IDSA_REPORTS/`
-- **Dark Cybersecurity UI** — Tailwind CSS dark theme with cyan accents
-
----
-
-## ⚠️ Legal Disclaimer
-
-This tool is for **educational and authorized security testing purposes only**.  
-You must have **explicit written permission** to scan any network or device you do not own.  
-The developers assume no liability for misuse.
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/approve` | None | Accepts `IAGREE`, returns a JWT token |
+| POST | `/api/scan` | JWT | Runs the full scan, returns JSON results |
+| POST | `/api/generate-report` | JWT | Generates report files, saves to MOCK_USB |
+| GET | `/api/reports` | JWT | Lists saved report folders |
+| GET | `/api/reports/:id/:file` | JWT | Downloads a report file |
+| GET | `/api/health` | None | Health check |
 
 ---
 
-## 📸 Screenshots
+## Security Design
 
-| Consent Gate | Dashboard | Results |
+- Every API call except `/api/approve` and `/api/health` requires a JWT token.
+- The token is issued only after the user types `IAGREE` on the UI (physical approval requirement).
+- The JWT is stored in `sessionStorage` and expires after 8 hours.
+- The backend uses `helmet` for secure HTTP headers and `express-rate-limit` to prevent abuse.
+- Path traversal is prevented on the report download endpoint by using `path.basename()`.
+- The JWT secret lives in `.env` on the USB drive and is never committed to version control.
+
+---
+
+## Features
+
+- Authorization gate requiring physical user approval
+- Network device discovery with ping sweep and port scanning
+- CVE mapping for detected open ports
+- System information collection (OS, hardware)
+- USB device enumeration
+- Configuration issue detection
+- HTML and JSON reports saved to USB storage
+- Dark-themed web UI with real-time scan progress
+
+---
+
+## Legal Notice
+
+This tool is for authorized security testing and educational use only. You must have explicit written permission to scan any network or device you do not own. The author assumes no liability for misuse or any damage caused by this software.
+
+---
+
+## Screenshots
+
+| Consent Gate | Dashboard | Scan Results |
 |---|---|---|
 | ![](Screenshots/1.png) | ![](Screenshots/Final.png) | ![](Screenshots/IDSA_Report.png) |
-
