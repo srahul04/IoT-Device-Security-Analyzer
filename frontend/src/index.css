@@ -1,64 +1,145 @@
-/* src/index.css  –  Tailwind directives + global resets */
+/* src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Global base styles */
 @layer base {
-  * { box-sizing: border-box; }
+  * {
+    box-sizing: border-box;
+  }
 
   body {
-    @apply bg-cyber-bg text-cyber-text font-sans antialiased;
+    background-color: #000000;
+    color: #f5f5f5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     min-height: 100vh;
   }
 
-  /* Custom scrollbar to match the dark theme */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: #111827; }
-  ::-webkit-scrollbar-thumb { background: #1f2d44; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #00d4ff44; }
+  /* Custom scrollbar in pure gold on black */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0a0a0a;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #333333;
+    border-radius: 0px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #d4af37;
+  }
 }
 
 @layer components {
-  /* Reusable cyber card */
+  /* Boxy sharp gold card */
   .cyber-card {
-    @apply bg-cyber-surface border border-cyber-border rounded-xl p-5 shadow-lg;
+    background-color: #0d0d0d;
+    border: 1px solid #262626;
+    border-radius: 0px; /* Pure Boxy */
+    padding: 1.25rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.9);
   }
 
-  /* Glowing accent text */
+  .cyber-card-gold {
+    background-color: #0d0d0d;
+    border: 1px solid #d4af37;
+    border-radius: 0px;
+    padding: 1.25rem;
+  }
+
+  /* Pure Gold Text Accent */
   .cyber-accent {
-    @apply text-cyber-accent font-mono;
-    text-shadow: 0 0 8px #00d4ff88;
+    color: #d4af37;
+    font-family: monospace;
+    text-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
   }
 
-  /* Primary button */
+  /* Boxy Gold Primary Button */
   .btn-primary {
-    @apply px-6 py-3 rounded-lg font-semibold text-sm uppercase tracking-widest
-           bg-cyber-accent text-cyber-bg
-           hover:brightness-110 active:scale-95
-           transition-all duration-200 shadow-md;
-    box-shadow: 0 0 12px #00d4ff55;
+    padding: 0.75rem 1.5rem;
+    font-weight: 700;
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    background-color: #d4af37;
+    color: #000000;
+    border: 1px solid #d4af37;
+    border-radius: 0px; /* Boxy */
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.25);
   }
 
-  /* Danger button */
-  .btn-danger {
-    @apply px-6 py-3 rounded-lg font-semibold text-sm uppercase tracking-widest
-           bg-cyber-danger text-white
-           hover:brightness-110 active:scale-95
-           transition-all duration-200;
+  .btn-primary:hover {
+    background-color: #b8860b;
+    border-color: #b8860b;
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
   }
 
-  /* Ghost button */
+  .btn-primary:active {
+    transform: scale(0.98);
+  }
+
+  /* Boxy Ghost Button */
   .btn-ghost {
-    @apply px-4 py-2 rounded-lg text-sm font-mono border border-cyber-border
-           text-cyber-muted hover:border-cyber-accent hover:text-cyber-accent
-           transition-colors duration-200;
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+    font-family: monospace;
+    border: 1px solid #333333;
+    border-radius: 0px; /* Boxy */
+    background: transparent;
+    color: #a3a3a3;
+    transition: all 0.2s ease-in-out;
   }
 
-  /* Risk badge */
-  .badge-high   { @apply bg-cyber-danger/20   text-cyber-danger   border border-cyber-danger/40   px-2 py-0.5 rounded-full text-xs font-mono; }
-  .badge-medium { @apply bg-cyber-warning/20  text-cyber-warning  border border-cyber-warning/40  px-2 py-0.5 rounded-full text-xs font-mono; }
-  .badge-low    { @apply bg-cyber-success/20  text-cyber-success  border border-cyber-success/40  px-2 py-0.5 rounded-full text-xs font-mono; }
-  .badge-info   { @apply bg-cyber-accent/10   text-cyber-accent   border border-cyber-accent/30   px-2 py-0.5 rounded-full text-xs font-mono; }
-}
+  .btn-ghost:hover {
+    border-color: #d4af37;
+    color: #d4af37;
+  }
 
+  /* Risk badges (boxy) */
+  .badge-high {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    padding: 0.125rem 0.5rem;
+    border-radius: 0px;
+    font-size: 0.75rem;
+    font-family: monospace;
+    font-weight: 600;
+  }
+
+  .badge-medium {
+    background-color: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    padding: 0.125rem 0.5rem;
+    border-radius: 0px;
+    font-size: 0.75rem;
+    font-family: monospace;
+    font-weight: 600;
+  }
+
+  .badge-low {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    padding: 0.125rem 0.5rem;
+    border-radius: 0px;
+    font-size: 0.75rem;
+    font-family: monospace;
+    font-weight: 600;
+  }
+
+  .badge-info {
+    background-color: rgba(212, 175, 55, 0.15);
+    color: #d4af37;
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    padding: 0.125rem 0.5rem;
+    border-radius: 0px;
+    font-size: 0.75rem;
+    font-family: monospace;
+    font-weight: 600;
+  }
+}

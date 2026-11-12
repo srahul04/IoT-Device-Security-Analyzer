@@ -4,41 +4,45 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Cybersecurity dark theme palette
+        // Pure Black & Pure Gold luxury boxy theme
+        gold: {
+          50:  "#fffdf0",
+          100: "#fef9c3",
+          200: "#fef08a",
+          300: "#fde047",
+          400: "#eab308",
+          DEFAULT: "#d4af37", // Pure Metallic Gold
+          500: "#d4af37",
+          600: "#b8860b",     // Dark Goldenrod
+          700: "#996515",
+          800: "#785110",
+          900: "#50360a",
+        },
+        dark: {
+          bg: "#000000",      // Pure Black
+          surface: "#0a0a0a", // Off-black container
+          card: "#111111",    // Boxy card surface
+          border: "#262626",  // Border separator
+          muted: "#737373",   // Neutral text
+        },
         cyber: {
-          bg:       "#0a0e1a",   // near-black background
-          surface:  "#111827",   // card background
-          border:   "#1f2d44",   // subtle borders
-          accent:   "#00d4ff",   // cyan accent (primary actions)
-          accent2:  "#7c3aed",   // purple accent (secondary)
-          success:  "#10b981",   // green
-          warning:  "#f59e0b",   // amber
-          danger:   "#ef4444",   // red
-          muted:    "#64748b",   // grey text
-          text:     "#e2e8f0",   // primary text
+          bg:       "#000000",   // Pure Black
+          surface:  "#0a0a0a",   // Boxy surface
+          border:   "#262626",   // Boxy border
+          accent:   "#d4af37",   // Pure Gold
+          accent2:  "#b8860b",   // Deep Gold
+          success:  "#10b981",   // Emerald green
+          warning:  "#f59e0b",   // Amber
+          danger:   "#ef4444",   // Red
+          muted:    "#8a8a8a",   // Slate text
+          text:     "#f5f5f5",   // Bright white text
         },
       },
       fontFamily: {
-        mono: ["'Share Tech Mono'", "ui-monospace", "monospace"],
-        sans: ["'Exo 2'", "ui-sans-serif", "system-ui"],
-      },
-      animation: {
-        pulse_slow: "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        scanline:   "scanline 2s linear infinite",
-        glow:       "glow 2s ease-in-out infinite alternate",
-      },
-      keyframes: {
-        scanline: {
-          "0%":   { transform: "translateY(-100%)" },
-          "100%": { transform: "translateY(100vh)" },
-        },
-        glow: {
-          from: { boxShadow: "0 0 5px #00d4ff44" },
-          to:   { boxShadow: "0 0 20px #00d4ff88, 0 0 40px #00d4ff44" },
-        },
+        mono: ["'JetBrains Mono'", "'Share Tech Mono'", "ui-monospace", "monospace"],
+        sans: ["'Inter'", "'Exo 2'", "ui-sans-serif", "system-ui"],
       },
     },
   },
   plugins: [],
 };
-

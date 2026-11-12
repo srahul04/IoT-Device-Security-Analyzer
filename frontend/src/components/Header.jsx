@@ -1,39 +1,34 @@
-// src/components/Header.jsx  –  Top navigation bar
+// src/components/Header.jsx
 import React from "react";
 
 export default function Header() {
   return (
-    <header className="border-b border-cyber-border bg-cyber-surface/80 backdrop-blur-sm sticky top-0 z-40">
+    <header className="border-b border-[#262626] bg-[#000000] sticky top-0 z-40">
       <div className="container mx-auto px-4 py-3 max-w-7xl flex items-center justify-between">
-        {/* Logo & title */}
         <div className="flex items-center gap-3">
-          {/* Animated shield icon */}
-          <div className="relative">
-            <div className="w-9 h-9 rounded-lg bg-cyber-accent/10 border border-cyber-accent/40 flex items-center justify-center animate-pulse_slow">
-              <svg viewBox="0 0 24 24" className="w-5 h-5 fill-cyber-accent" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
-              </svg>
-            </div>
-            {/* Pulsing ring */}
-            <div className="absolute inset-0 rounded-lg border border-cyber-accent/20 animate-ping" />
+          <div className="w-8 h-8 bg-[#0a0a0a] border border-[#d4af37] flex items-center justify-center text-[#d4af37] font-bold text-sm">
+            &#9632;
           </div>
           <div>
-            <span className="text-lg font-bold tracking-wider text-cyber-text">
-              <span className="cyber-accent">IDSA</span>
-            </span>
-            <p className="text-xs text-cyber-muted font-mono leading-none">
-              IoT Device Security Analyzer
+            <div className="flex items-center gap-2">
+              <span className="text-base font-bold tracking-wider text-white">
+                IDSA <span className="text-[#d4af37]">PRO</span>
+              </span>
+              <span className="text-[10px] font-mono uppercase bg-[#141414] border border-[#333333] px-1.5 py-0.5 text-neutral-400">
+                Author: Rahul S
+              </span>
+            </div>
+            <p className="text-[11px] text-neutral-500 font-mono leading-none">
+              IoT Device Security Analyzer &bull; Portable Edition
             </p>
           </div>
         </div>
 
-        {/* Status pill */}
-        <div className="flex items-center gap-2 text-xs font-mono text-cyber-muted">
-          <span className="w-2 h-2 rounded-full bg-cyber-success animate-pulse" />
-          <span>SYSTEM ONLINE</span>
+        <div className="flex items-center gap-2 text-xs font-mono text-[#d4af37] bg-[#0c0c0c] border border-[#262626] px-3 py-1">
+          <span className="w-2 h-2 bg-[#d4af37] animate-pulse" />
+          <span>SYSTEM READY</span>
         </div>
       </div>
     </header>
   );
 }
-
