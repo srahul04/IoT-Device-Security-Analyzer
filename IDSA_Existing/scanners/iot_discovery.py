@@ -132,3 +132,4 @@ def run_iot_discovery():
         "discovered_devices": devices,
         "findings": findings
     }
+

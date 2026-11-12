@@ -116,3 +116,4 @@ def audit_iot_services(host, open_ports):
                 "recommendation": res["recommendation"]
             })
     return findings
+

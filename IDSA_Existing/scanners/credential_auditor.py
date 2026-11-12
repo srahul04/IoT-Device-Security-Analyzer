@@ -86,3 +86,4 @@ def run_credential_audit(active_hosts, open_ports_map):
                     })
                     break  # Stop checking additional ports for this host
     return findings
+

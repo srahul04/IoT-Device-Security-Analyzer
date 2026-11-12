@@ -109,3 +109,4 @@ def scan_host_fingerprints(host, open_ports):
         fp = fingerprint_service(host, port)
         fingerprints.append(fp)
     return fingerprints
+
