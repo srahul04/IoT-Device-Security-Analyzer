@@ -1,18 +1,4 @@
-/**
- * server.js
- * IDSA Express backend
- *
- * Routes:
- *   POST /api/approve          issue a session token after physical consent
- *   POST /api/scan             run full scan, returns JSON
- *   POST /api/generate-report  generate report files, save to MOCK_USB
- *   GET  /api/reports          list saved report folders
- *   GET  /api/reports/:id/:file download a report file
- *   GET  /api/health           health check
- *
- * Start: node server.js
- */
-
+// backend/server.js
 require("dotenv").config({ path: require("path").resolve(__dirname, "../.env") });
 
 const express      = require("express");
@@ -28,8 +14,8 @@ const helmet       = require("helmet");
 const app  = express();
 const PORT = process.env.SERVER_PORT || 5000;
 
-const JWT_SECRET          = process.env.JWT_SECRET;
-const REQUIRE_APPROVAL    = process.env.REQUIRE_USER_APPROVAL !== "false";
+const JWT_SECRET       = process.env.JWT_SECRET;
+const REQUIRE_APPROVAL = process.env.REQUIRE_USER_APPROVAL !== "false";
 
 if (!JWT_SECRET) {
   console.error("FATAL: JWT_SECRET is not set. Copy .env.example to .env and set a secret.");
@@ -50,11 +36,11 @@ fs.mkdirSync(MOCK_USB_DIR, { recursive: true });
 // Security middleware
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "15mb" }));
 
 // Rate limiting
-const scanLimiter = rateLimit({ windowMs: 60_000, max: 10, message: { error: "Too many requests." } });
-const authLimiter = rateLimit({ windowMs: 60_000, max: 20, message: { error: "Too many requests." } });
+const scanLimiter = rateLimit({ windowMs: 60_000, max: 15, message: { error: "Too many scan requests." } });
+const authLimiter = rateLimit({ windowMs: 60_000, max: 20, message: { error: "Too many auth requests." } });
 
 // JWT middleware
 function verifyToken(req, res, next) {
@@ -68,8 +54,10 @@ function verifyToken(req, res, next) {
   });
 }
 
-// Python spawner
-function spawnPython(args, timeoutMs = 120_000) {
+// In-memory cache for latest scan result to avoid huge command-line arguments on Windows
+let lastScanResult = null;
+
+function spawnPython(args, timeoutMs = 180_000) {
   return new Promise((resolve, reject) => {
     const child = spawn(PYTHON_BIN, [PYTHON_RUNNER, ...args], {
       cwd: path.dirname(PYTHON_RUNNER),
@@ -122,6 +110,7 @@ app.post("/api/scan", scanLimiter, verifyToken, async (req, res) => {
   console.log("[Node] /api/scan requested");
   try {
     const result = await spawnPython(["--scan"]);
+    lastScanResult = result;
     res.json({ success: true, data: result });
   } catch (err) {
     console.error("[Node] Scan error:", err.message);
@@ -133,12 +122,25 @@ app.post("/api/scan", scanLimiter, verifyToken, async (req, res) => {
 app.post("/api/generate-report", verifyToken, async (req, res) => {
   console.log("[Node] /api/generate-report requested");
   try {
-    const args = ["--report"];
-    if (req.body?.scanData) {
-      const encoded = Buffer.from(JSON.stringify(req.body.scanData)).toString("base64");
-      args.push("--scan-data", encoded);
+    const scanPayload = req.body?.scanData || lastScanResult;
+    const tempFile = path.join(os.tmpdir(), `idsa_scan_${Date.now()}.json`);
+    
+    if (scanPayload) {
+      fs.writeFileSync(tempFile, JSON.stringify(scanPayload), "utf-8");
     }
+
+    const args = ["--report"];
+    if (fs.existsSync(tempFile)) {
+      args.push("--scan-file", tempFile);
+    }
+
     const result = await spawnPython(args);
+    
+    // Clean temp file
+    if (fs.existsSync(tempFile)) {
+      try { fs.unlinkSync(tempFile); } catch (e) {}
+    }
+
     res.json({ success: true, data: result });
   } catch (err) {
     console.error("[Node] Report error:", err.message);
@@ -175,11 +177,11 @@ app.get("/api/reports/:id/:file", verifyToken, (req, res) => {
 // GET /api/health
 app.get("/api/health", (req, res) => {
   res.json({
-    status:  "ok",
-    host:    os.hostname(),
-    python:  PYTHON_BIN,
+    status:   "ok",
+    host:     os.hostname(),
+    python:   PYTHON_BIN,
     mock_usb: MOCK_USB_DIR,
-    time:    new Date().toISOString(),
+    time:     new Date().toISOString(),
   });
 });
 

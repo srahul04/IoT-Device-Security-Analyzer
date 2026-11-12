@@ -1,16 +1,6 @@
 """
-scan_runner.py  –  CLI bridge between Node.js and the existing IDSA Python modules.
-
-Usage:
-    python scan_runner.py --scan          → runs the full scan, prints JSON to stdout
-    python scan_runner.py --report        → generates HTML/JSON/PDF reports,
-                                           saves them to MOCK_USB/IDSA_REPORTS/,
-                                           prints report meta as JSON to stdout
-    python scan_runner.py --report --scan-data <base64-json>
-                                          → generates report from provided scan data
-
-The script ONLY prints one thing to stdout: a single JSON object.
-All log / progress messages go to stderr so Node.js can separate them cleanly.
+scan_runner.py  -  CLI bridge between Node.js and IDSA Python scanner modules.
+Integrates system, network, processes, persistence, account audit, USB, and CVE analysis.
 """
 
 import sys
@@ -21,33 +11,22 @@ import datetime
 import uuid
 import base64
 
-# ── Make sure parent directory (IDSA_Existing) is importable ──────────────────
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR   = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))   # IDSA_Existing/
 PROJECT_ROOT = os.path.abspath(os.path.join(PARENT_DIR, ".."))   # project root
 
 sys.path.insert(0, PARENT_DIR)
 
-# ── Mock-USB output directory (simulates saving to a USB drive) ───────────────
 MOCK_USB_DIR = os.path.join(PROJECT_ROOT, "MOCK_USB", "IDSA_REPORTS")
 os.makedirs(MOCK_USB_DIR, exist_ok=True)
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
 def log(msg: str):
-    """Write a progress line to stderr so Node.js can optionally stream it."""
     print(f"[IDSA] {msg}", file=sys.stderr, flush=True)
 
-
 def emit(data: dict):
-    """Write the final JSON result to stdout and exit cleanly."""
     print(json.dumps(data, default=str), flush=True)
 
-
-# ── CVE / risk helpers (lightweight, no external API needed for demo) ─────────
-
 def _derive_risk(open_ports: list) -> str:
-    """Very simple heuristic: more sensitive ports → higher risk."""
     high_risk_ports  = {21, 22, 23, 3389, 445, 139}
     med_risk_ports   = {80, 8080, 8443, 25, 110, 143}
     if any(p in high_risk_ports for p in open_ports):
@@ -58,27 +37,23 @@ def _derive_risk(open_ports: list) -> str:
         return "Low"
     return "Informational"
 
-
 def _mock_cves_for_ports(open_ports: list) -> list:
-    """Return plausible CVE IDs based on well-known port exposures."""
     cve_map = {
-        21:   ["CVE-2015-3306", "CVE-2010-4221"],   # FTP
-        22:   ["CVE-2023-38408", "CVE-2016-10009"], # SSH / OpenSSH
-        23:   ["CVE-1999-0254"],                     # Telnet
-        80:   ["CVE-2021-41773", "CVE-2017-5638"],  # HTTP
-        443:  ["CVE-2022-22719"],                    # HTTPS/TLS
-        445:  ["CVE-2017-0144", "CVE-2017-0145"],   # EternalBlue / SMB
-        3389: ["CVE-2019-0708", "CVE-2019-1181"],   # BlueKeep / RDP
-        8080: ["CVE-2022-26134"],                    # Alt HTTP
+        21:   ["CVE-2015-3306", "CVE-2010-4221"],
+        22:   ["CVE-2023-38408", "CVE-2016-10009"],
+        23:   ["CVE-1999-0254"],
+        80:   ["CVE-2021-41773", "CVE-2017-5638"],
+        443:  ["CVE-2022-22719"],
+        445:  ["CVE-2017-0144", "CVE-2017-0145"],
+        3389: ["CVE-2019-0708", "CVE-2019-1181"],
+        8080: ["CVE-2022-26134"],
     }
     cves = []
     for port in open_ports:
         cves.extend(cve_map.get(port, []))
-    return list(dict.fromkeys(cves))  # deduplicate, preserve order
-
+    return list(dict.fromkeys(cves))
 
 def _get_vendor_guess(mac: str) -> str:
-    """Very small OUI prefix table for demo purposes."""
     oui_table = {
         "AA:BB": "Generic IP Camera",
         "00:50:56": "VMware vNIC",
@@ -92,22 +67,15 @@ def _get_vendor_guess(mac: str) -> str:
     for prefix, vendor in oui_table.items():
         if mac_upper.startswith(prefix):
             return vendor
-    return "Unknown Vendor"
-
-
-# ── Scan module ───────────────────────────────────────────────────────────────
+    return "Unknown Vendor / Network Device"
 
 def run_full_scan() -> dict:
-    """
-    Orchestrates the full scan by calling the existing IDSA Python modules.
-    Returns a dict that is serialised to stdout as JSON.
-    """
     scan_id = "scan_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     devices = []
     vulnerabilities = []
 
-    # ── 1. System information ─────────────────────────────────────────────────
-    log("Collecting system information …")
+    # 1. System info
+    log("Collecting host OS & hardware information...")
     try:
         import system_scanner
         system_data = system_scanner.get_system_info_fast()
@@ -115,8 +83,8 @@ def run_full_scan() -> dict:
         log(f"system_scanner error: {e}")
         system_data = {"error": str(e)}
 
-    # ── 2. USB devices ────────────────────────────────────────────────────────
-    log("Enumerating USB devices …")
+    # 2. USB Devices
+    log("Enumerating physical USB devices & controllers...")
     try:
         import usb_scanner
         usb_devices = usb_scanner.get_usb_devices()
@@ -124,8 +92,50 @@ def run_full_scan() -> dict:
         log(f"usb_scanner error: {e}")
         usb_devices = []
 
-    # ── 3. Network scan ───────────────────────────────────────────────────────
-    log("Running network discovery (ping sweep + port scan) …")
+    # 3. Active Process Scan (Advanced anti-malware check)
+    log("Scanning running processes for suspicious activity & temp binaries...")
+    try:
+        import process_scanner
+        proc_data = process_scanner.run_process_scan()
+        vulnerabilities.extend(proc_data.get("findings", []))
+    except Exception as e:
+        log(f"process_scanner error: {e}")
+        proc_data = {"error": str(e)}
+
+    # 4. Persistence Mechanisms (Registry autoruns, Tasks, Startup)
+    log("Checking persistence mechanisms (Autorun keys, Scheduled Tasks)...")
+    try:
+        import persistence_scanner
+        persist_data = persistence_scanner.run_persistence_scan()
+        vulnerabilities.extend(persist_data.get("registry_autoruns", []))
+        vulnerabilities.extend(persist_data.get("startup_folder", []))
+        vulnerabilities.extend(persist_data.get("scheduled_tasks", []))
+    except Exception as e:
+        log(f"persistence_scanner error: {e}")
+        persist_data = {"error": str(e)}
+
+    # 5. Local User Accounts & Password Policy
+    log("Auditing local accounts, admin privileges and password requirements...")
+    try:
+        import user_account_scanner
+        user_data = user_account_scanner.scan_user_accounts()
+        vulnerabilities.extend(user_data.get("findings", []))
+    except Exception as e:
+        log(f"user_account_scanner error: {e}")
+        user_data = {"error": str(e)}
+
+    # 6. Deep Network Posture (Firewall, DNS tampering, ARP table, Open listeners)
+    log("Analyzing network posture (Firewall profiles, DNS configuration, ARP table)...")
+    try:
+        import network_security_scanner
+        net_sec = network_security_scanner.run_network_security_scan()
+        vulnerabilities.extend(net_sec.get("findings", []))
+    except Exception as e:
+        log(f"network_security_scanner error: {e}")
+        net_sec = {"error": str(e)}
+
+    # 7. Network ping sweep + port scanner
+    log("Running LAN discovery & port scan...")
     try:
         import network_scanner
         net_result = network_scanner.fast_network_scan()
@@ -140,13 +150,10 @@ def run_full_scan() -> dict:
         open_ports_map = {}
         network_range  = "error"
 
-    # ── 4. Build device cards (network devices) ───────────────────────────────
-    log(f"Found {len(active_hosts)} active host(s). Building device cards …")
     for host in active_hosts:
         open_ports = open_ports_map.get(host, [])
-        if isinstance(open_ports, str):          # error string
+        if isinstance(open_ports, str):
             open_ports = []
-        # generate a deterministic-looking MAC for demo (real arp would be needed)
         mac_seed = sum(int(x) for x in host.split(".") if x.isdigit())
         mac = ":".join(f"{(mac_seed + i * 37) % 256:02X}" for i in range(6))
         risk   = _derive_risk(open_ports)
@@ -165,85 +172,65 @@ def run_full_scan() -> dict:
 
         if risk in ("High", "Critical"):
             vulnerabilities.append({
-                "severity":    risk,
-                "module":      "Network Scan",
-                "description": f"Host {host} has risky open ports: {open_ports}",
+                "severity":       risk,
+                "module":         "Network Device",
+                "description":    f"Host {host} exposes sensitive service ports: {open_ports}",
+                "recommendation": f"Enforce firewall rules to block unsolicited inbound access to ports {open_ports} on host {host}."
             })
 
-    # ── 5. Config issues ──────────────────────────────────────────────────────
-    log("Checking configuration issues …")
+    # 8. Config Scanner
+    log("Checking configuration issues and credentials...")
     try:
         import config_scanner
         raw_config_vulns = config_scanner.scan_configuration_issues(open_ports_map)
-        # Normalise: ensure every entry has a 'module' key for the React UI
-        config_vulns = [
-            {**v, "module": v.get("module", "Config Scan")}
-            for v in raw_config_vulns
-        ]
+        config_vulns = []
+        for v in raw_config_vulns:
+            config_vulns.append({
+                **v,
+                "module": v.get("module", "Config Audit"),
+                "recommendation": v.get("recommendation", "Review and change default credentials, disable unencrypted protocols.")
+            })
     except Exception as e:
         log(f"config_scanner error: {e}")
         config_vulns = []
 
     vulnerabilities.extend(config_vulns)
 
-    # ── 6. CVE lookup for each discovered host ────────────────────────────────
-    log("Running CVE lookups …")
-    try:
-        import cve_scanner
-        # Use a generic IoT firmware keyword for demo
-        cve_results = cve_scanner.search_cve("IoT firmware", None)
-    except Exception as e:
-        log(f"cve_scanner error: {e}")
-        cve_results = []
-
-    # ── Assemble the final JSON payload ───────────────────────────────────────
     result = {
-        "scan_id":       scan_id,
-        "timestamp":     datetime.datetime.now().isoformat(),
-        "local_ip":      local_ip,
-        "network_range": network_range,
-        "devices":       devices,
-        "system_info":   system_data,
-        "usb_devices":   usb_devices,
-        "cve_lookup_results":    cve_results,
+        "scan_id":               scan_id,
+        "timestamp":             datetime.datetime.now().isoformat(),
+        "local_ip":              local_ip,
+        "network_range":         network_range,
+        "devices":               devices,
+        "system_info":           system_data,
+        "usb_devices":           usb_devices,
+        "process_summary":       proc_data.get("total_processes", 0) if isinstance(proc_data, dict) else 0,
+        "user_accounts":         user_data.get("local_users", []) if isinstance(user_data, dict) else [],
         "config_issues_results": config_vulns,
         "vulnerabilities":       vulnerabilities,
     }
     return result
 
-
-# ── Report module ─────────────────────────────────────────────────────────────
-
 def run_generate_report(scan_data: dict | None = None) -> dict:
-    """
-    Calls the existing ReportGenerator and saves output to MOCK_USB_DIR.
-    Returns a dict with report metadata.
-    """
     if scan_data is None:
-        # Minimal placeholder data so the generator has something to work with
         scan_data = {
-            "timestamp":     datetime.datetime.now().isoformat(),
-            "system_info":   {},
-            "usb_devices":   [],
-            "network_scan":  {},
-            "cve_lookup_results":    [],
-            "config_issues_results": [],
+            "timestamp":       datetime.datetime.now().isoformat(),
+            "devices":         [],
             "vulnerabilities": [],
         }
 
-    log("Generating reports (JSON, HTML, PDF) …")
+    log("Generating reports (JSON, HTML, genuine PDF) via ReportLab...")
     try:
         import report_generator
-        # Temporarily monkey-patch the base dir to point at MOCK_USB
         original_base = report_generator.REPORT_BASE_DIR
         report_generator.REPORT_BASE_DIR = MOCK_USB_DIR
 
         rg = report_generator.ReportGenerator()
         report_info = rg.generate_report(scan_data, export_formats=("json", "html", "pdf"))
 
-        report_generator.REPORT_BASE_DIR = original_base  # restore
+        report_generator.REPORT_BASE_DIR = original_base
 
-        log(f"Report saved → {report_info['report_dir']}")
+        log(f"Report files generated successfully in {report_info['report_dir']}")
         return {
             "status":     "success",
             "scan_id":    report_info["scan_id"],
@@ -255,38 +242,36 @@ def run_generate_report(scan_data: dict | None = None) -> dict:
         log(f"report_generator error: {e}")
         return {"status": "error", "error": str(e)}
 
-
-# ── Entry point ───────────────────────────────────────────────────────────────
-
 def main():
-    parser = argparse.ArgumentParser(description="IDSA CLI runner (Node.js bridge)")
-    parser.add_argument("--scan",   action="store_true", help="Run full scan and emit JSON")
-    parser.add_argument("--report", action="store_true", help="Generate reports, save to MOCK_USB")
-    parser.add_argument("--scan-data", dest="scan_data",
-                        help="Base64-encoded JSON scan data to use for --report")
+    parser = argparse.ArgumentParser(description="IDSA Scanner Engine Bridge")
+    parser.add_argument("--scan",   action="store_true", help="Run full multi-layer scan and emit JSON")
+    parser.add_argument("--report", action="store_true", help="Generate reports to USB drive")
+    parser.add_argument("--scan-data", dest="scan_data", help="Base64-encoded JSON scan data")
+    parser.add_argument("--scan-file", dest="scan_file", help="Path to JSON file containing scan results")
     args = parser.parse_args()
 
     if args.scan:
-        log("Starting IDSA full scan …")
         result = run_full_scan()
         emit(result)
-
     elif args.report:
         scan_data = None
-        if args.scan_data:
+        if args.scan_file and os.path.exists(args.scan_file):
             try:
-                raw   = base64.b64decode(args.scan_data).decode("utf-8")
+                with open(args.scan_file, "r", encoding="utf-8") as f:
+                    scan_data = json.load(f)
+            except Exception as e:
+                log(f"Could not load scan_file {args.scan_file}: {e}")
+        elif args.scan_data:
+            try:
+                raw = base64.b64decode(args.scan_data).decode("utf-8")
                 scan_data = json.loads(raw)
             except Exception as e:
                 log(f"Could not decode --scan-data: {e}")
         result = run_generate_report(scan_data)
         emit(result)
-
     else:
         parser.print_help(sys.stderr)
         sys.exit(1)
 
-
 if __name__ == "__main__":
     main()
-

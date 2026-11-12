@@ -46,3 +46,4 @@ Start-Process "http://localhost:5000"
 
 Write-Host "IDSA is running at http://localhost:5000"
 Write-Host "Close the Node.js window to stop the server."
+
