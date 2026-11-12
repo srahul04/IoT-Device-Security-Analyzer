@@ -1,6 +1,6 @@
 """
 scan_runner.py - CLI Engine Orchestrator
-Coordinates scanner modules and report generation.
+Coordinates multi-layer system, IoT discovery, protocol auditing, and report generation.
 """
 
 import sys
@@ -26,6 +26,10 @@ from scanners import (
     network_security_scanner,
     network_scanner,
     config_scanner,
+    iot_discovery,
+    banner_grabber,
+    iot_protocols,
+    credential_auditor,
 )
 import report_generator
 
@@ -38,9 +42,13 @@ def log(msg: str):
 def emit(data: dict):
     print(json.dumps(data, default=str), flush=True)
 
-def _derive_risk(open_ports: list) -> str:
+def _derive_risk(open_ports: list, findings_for_host: list) -> str:
+    if any(f.get("severity") == "Critical" for f in findings_for_host):
+        return "Critical"
+    if any(f.get("severity") == "High" for f in findings_for_host):
+        return "High"
     high_risk_ports  = {21, 22, 23, 3389, 445, 139}
-    med_risk_ports   = {80, 8080, 8443, 25, 110, 143}
+    med_risk_ports   = {80, 8080, 8443, 25, 110, 143, 1883, 554}
     if any(p in high_risk_ports for p in open_ports):
         return "High"
     if any(p in med_risk_ports for p in open_ports):
@@ -57,6 +65,8 @@ def _mock_cves_for_ports(open_ports: list) -> list:
         80:   ["CVE-2021-41773", "CVE-2017-5638"],
         443:  ["CVE-2022-22719"],
         445:  ["CVE-2017-0144", "CVE-2017-0145"],
+        554:  ["CVE-2021-36260", "CVE-2018-9995"], # Hikvision / TBK Camera CVEs
+        1883: ["CVE-2020-13849"],                  # Eclipse Mosquitto CVE
         3389: ["CVE-2019-0708", "CVE-2019-1181"],
         8080: ["CVE-2022-26134"],
     }
@@ -65,28 +75,12 @@ def _mock_cves_for_ports(open_ports: list) -> list:
         cves.extend(cve_map.get(port, []))
     return list(dict.fromkeys(cves))
 
-def _get_vendor_guess(mac: str) -> str:
-    oui_table = {
-        "AA:BB": "Generic IP Camera",
-        "00:50:56": "VMware vNIC",
-        "08:00:27": "VirtualBox vNIC",
-        "FC:EC:DA": "Ubiquiti Networks",
-        "B8:27:EB": "Raspberry Pi Foundation",
-        "DC:A6:32": "Raspberry Pi Trading",
-        "00:17:88": "Philips Hue / Signify",
-    }
-    mac_upper = mac.upper()
-    for prefix, vendor in oui_table.items():
-        if mac_upper.startswith(prefix):
-            return vendor
-    return "Unknown Vendor / Network Device"
-
 def run_full_scan() -> dict:
     scan_id = "scan_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     devices = []
     vulnerabilities = []
 
-    # 1. System info
+    # 1. System Telemetry
     log("Collecting host OS and hardware telemetry...")
     try:
         system_data = system_scanner.get_system_info_fast()
@@ -94,7 +88,7 @@ def run_full_scan() -> dict:
         log(f"system_scanner error: {e}")
         system_data = {"error": str(e)}
 
-    # 2. USB Devices
+    # 2. USB Hardware Enumeration
     log("Scanning hardware USB buses and attached peripherals...")
     try:
         usb_devices = usb_scanner.get_usb_devices()
@@ -103,7 +97,7 @@ def run_full_scan() -> dict:
         usb_devices = []
 
     # 3. Active Process Threat Scanner
-    log("Inspecting processes for temp execution and suspicious patterns...")
+    log("Inspecting processes for temp execution, hidden commands & miner tooling...")
     try:
         proc_data = process_scanner.run_process_scan()
         vulnerabilities.extend(proc_data.get("findings", []))
@@ -111,7 +105,7 @@ def run_full_scan() -> dict:
         log(f"process_scanner error: {e}")
         proc_data = {"error": str(e)}
 
-    # 4. Persistence Mechanisms
+    # 4. Persistence Mechanisms Audit
     log("Auditing Windows Run keys, Startup items, and Scheduled Tasks...")
     try:
         persist_data = persistence_scanner.run_persistence_scan()
@@ -122,8 +116,8 @@ def run_full_scan() -> dict:
         log(f"persistence_scanner error: {e}")
         persist_data = {"error": str(e)}
 
-    # 5. Local User Accounts & Security Policy
-    log("Auditing local accounts, admin privileges, and password policies...")
+    # 5. Local User Accounts & Security Policy Audit
+    log("Auditing local accounts, guest status, and password policies...")
     try:
         user_data = user_account_scanner.scan_user_accounts()
         vulnerabilities.extend(user_data.get("findings", []))
@@ -131,8 +125,8 @@ def run_full_scan() -> dict:
         log(f"user_account_scanner error: {e}")
         user_data = {"error": str(e)}
 
-    # 6. Deep Network Posture
-    log("Analyzing network posture (DNS integrity, ARP cache, Firewall)...")
+    # 6. Deep Network Posture (DNS integrity, ARP spoofing, Firewall)
+    log("Analyzing network posture (DNS integrity, ARP table, Firewall state)...")
     try:
         net_sec = network_security_scanner.run_network_security_scan()
         vulnerabilities.extend(net_sec.get("findings", []))
@@ -140,8 +134,19 @@ def run_full_scan() -> dict:
         log(f"network_security_scanner error: {e}")
         net_sec = {"error": str(e)}
 
-    # 7. Network Ping Sweep + Port Scan
-    log("Conducting network discovery and port enumeration...")
+    # 7. SSDP / UPnP IoT Device Discovery (Zero-guess model detection)
+    log("Broadcasting SSDP/UPnP M-SEARCH to identify smart IoT devices...")
+    ssdp_devices = {}
+    try:
+        upnp_res = iot_discovery.run_iot_discovery()
+        vulnerabilities.extend(upnp_res.get("findings", []))
+        for dev in upnp_res.get("discovered_devices", []):
+            ssdp_devices[dev["ip"]] = dev
+    except Exception as e:
+        log(f"iot_discovery error: {e}")
+
+    # 8. Network Discovery & Port Enumeration
+    log("Conducting network discovery and multi-port enumeration...")
     try:
         net_result = network_scanner.fast_network_scan()
         local_ip   = network_scanner.get_local_ip()
@@ -155,27 +160,85 @@ def run_full_scan() -> dict:
         open_ports_map = {}
         network_range  = "error"
 
+    # Merge SSDP discovered IPs into active hosts if not already present
+    for s_ip in ssdp_devices.keys():
+        if s_ip not in active_hosts and not s_ip.startswith("127."):
+            active_hosts.append(s_ip)
+            open_ports_map[s_ip] = open_ports_map.get(s_ip, [])
+
+    # 9. Deep Banner Grabbing & Service Fingerprinting
+    log("Grabbing service banners and HTTP page titles from open ports...")
+    host_fingerprints = {}
+    for host in active_hosts:
+        ports = open_ports_map.get(host, [])
+        if isinstance(ports, list) and ports:
+            try:
+                host_fingerprints[host] = banner_grabber.scan_host_fingerprints(host, ports)
+            except Exception as e:
+                log(f"banner_grabber error on {host}: {e}")
+
+    # 10. IoT Protocol Audit (MQTT anonymous brokers, RTSP streams)
+    log("Auditing specialized IoT protocols (MQTT, RTSP camera streams)...")
+    for host in active_hosts:
+        ports = open_ports_map.get(host, [])
+        if isinstance(ports, list) and ports:
+            try:
+                iot_findings = iot_protocols.audit_iot_services(host, ports)
+                vulnerabilities.extend(iot_findings)
+            except Exception as e:
+                log(f"iot_protocols error on {host}: {e}")
+
+    # 11. Safe Default Credential Audit
+    log("Running non-destructive IoT default credential checks...")
+    try:
+        cred_findings = credential_auditor.run_credential_audit(active_hosts, open_ports_map)
+        vulnerabilities.extend(cred_findings)
+    except Exception as e:
+        log(f"credential_auditor error: {e}")
+
+    # 12. Build Consolidated Device Cards
     for host in active_hosts:
         open_ports = open_ports_map.get(host, [])
         if isinstance(open_ports, str):
             open_ports = []
+
         mac_seed = sum(int(x) for x in host.split(".") if x.isdigit())
         mac = ":".join(f"{(mac_seed + i * 37) % 256:02X}" for i in range(6))
-        risk   = _derive_risk(open_ports)
-        cves   = _mock_cves_for_ports(open_ports)
-        vendor = _get_vendor_guess(mac)
+
+        # Check if we have exact UPnP device identity
+        upnp_info = ssdp_devices.get(host)
+        if upnp_info:
+            vendor = upnp_info.get("friendly_name") or upnp_info.get("model_name") or upnp_info.get("manufacturer") or "UPnP IoT Device"
+        else:
+            # Check if web page title gives the model away
+            fps = host_fingerprints.get(host, [])
+            titles = [f["title"] for f in fps if f.get("title")]
+            srvs = [f["server_header"] for f in fps if f.get("server_header")]
+            if titles:
+                vendor = f"{titles[0]} ({srvs[0] if srvs else 'Web Device'})"
+            elif srvs:
+                vendor = f"Host ({srvs[0]})"
+            else:
+                vendor = "Network Host / IoT Node"
+
+        # Determine host-specific findings for accurate risk rating
+        host_vulns = [v for v in vulnerabilities if host in v.get("description", "")]
+        risk = _derive_risk(open_ports, host_vulns)
+        cves = _mock_cves_for_ports(open_ports)
 
         device_card = {
-            "ip":         host,
-            "mac":        mac,
-            "vendor":     vendor,
-            "open_ports": open_ports,
-            "risk_score": risk,
-            "cves":       cves,
+            "ip":           host,
+            "mac":          mac,
+            "vendor":       vendor,
+            "open_ports":   open_ports,
+            "risk_score":   risk,
+            "cves":         cves,
+            "fingerprints": host_fingerprints.get(host, []),
+            "upnp_info":    upnp_info or None,
         }
         devices.append(device_card)
 
-        if risk in ("High", "Critical"):
+        if risk in ("High", "Critical") and not host_vulns:
             vulnerabilities.append({
                 "severity":       risk,
                 "module":         "Network Device",
@@ -183,7 +246,7 @@ def run_full_scan() -> dict:
                 "recommendation": f"Enforce firewall rules to block unsolicited inbound access to ports {open_ports} on host {host}."
             })
 
-    # 8. Configuration Issues
+    # 13. Configuration Audit
     log("Checking configuration issues and credentials...")
     try:
         raw_config_vulns = config_scanner.scan_configuration_issues(open_ports_map)

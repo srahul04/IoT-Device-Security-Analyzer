@@ -20,3 +20,4 @@ router.get("/reports", verifyToken, scanController.getReports);
 router.get("/reports/:id/:file", verifyToken, scanController.downloadReportFile);
 
 module.exports = router;
+

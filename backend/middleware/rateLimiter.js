@@ -18,3 +18,4 @@ const authLimiter = rateLimit({
 });
 
 module.exports = { scanLimiter, authLimiter };
+
