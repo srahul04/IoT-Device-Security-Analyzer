@@ -1,6 +1,6 @@
 """
-scan_runner.py  -  CLI bridge between Node.js and IDSA Python scanner modules.
-Integrates system, network, processes, persistence, account audit, USB, and CVE analysis.
+scan_runner.py - CLI Engine Orchestrator
+Coordinates scanner modules and report generation.
 """
 
 import sys
@@ -17,11 +17,23 @@ PROJECT_ROOT = os.path.abspath(os.path.join(PARENT_DIR, ".."))   # project root
 
 sys.path.insert(0, PARENT_DIR)
 
+from scanners import (
+    system_scanner,
+    usb_scanner,
+    process_scanner,
+    persistence_scanner,
+    user_account_scanner,
+    network_security_scanner,
+    network_scanner,
+    config_scanner,
+)
+import report_generator
+
 MOCK_USB_DIR = os.path.join(PROJECT_ROOT, "MOCK_USB", "IDSA_REPORTS")
 os.makedirs(MOCK_USB_DIR, exist_ok=True)
 
 def log(msg: str):
-    print(f"[IDSA] {msg}", file=sys.stderr, flush=True)
+    print(f"[IDSA Engine] {msg}", file=sys.stderr, flush=True)
 
 def emit(data: dict):
     print(json.dumps(data, default=str), flush=True)
@@ -75,37 +87,33 @@ def run_full_scan() -> dict:
     vulnerabilities = []
 
     # 1. System info
-    log("Collecting host OS & hardware information...")
+    log("Collecting host OS and hardware telemetry...")
     try:
-        import system_scanner
         system_data = system_scanner.get_system_info_fast()
     except Exception as e:
         log(f"system_scanner error: {e}")
         system_data = {"error": str(e)}
 
     # 2. USB Devices
-    log("Enumerating physical USB devices & controllers...")
+    log("Scanning hardware USB buses and attached peripherals...")
     try:
-        import usb_scanner
         usb_devices = usb_scanner.get_usb_devices()
     except Exception as e:
         log(f"usb_scanner error: {e}")
         usb_devices = []
 
-    # 3. Active Process Scan (Advanced anti-malware check)
-    log("Scanning running processes for suspicious activity & temp binaries...")
+    # 3. Active Process Threat Scanner
+    log("Inspecting processes for temp execution and suspicious patterns...")
     try:
-        import process_scanner
         proc_data = process_scanner.run_process_scan()
         vulnerabilities.extend(proc_data.get("findings", []))
     except Exception as e:
         log(f"process_scanner error: {e}")
         proc_data = {"error": str(e)}
 
-    # 4. Persistence Mechanisms (Registry autoruns, Tasks, Startup)
-    log("Checking persistence mechanisms (Autorun keys, Scheduled Tasks)...")
+    # 4. Persistence Mechanisms
+    log("Auditing Windows Run keys, Startup items, and Scheduled Tasks...")
     try:
-        import persistence_scanner
         persist_data = persistence_scanner.run_persistence_scan()
         vulnerabilities.extend(persist_data.get("registry_autoruns", []))
         vulnerabilities.extend(persist_data.get("startup_folder", []))
@@ -114,30 +122,27 @@ def run_full_scan() -> dict:
         log(f"persistence_scanner error: {e}")
         persist_data = {"error": str(e)}
 
-    # 5. Local User Accounts & Password Policy
-    log("Auditing local accounts, admin privileges and password requirements...")
+    # 5. Local User Accounts & Security Policy
+    log("Auditing local accounts, admin privileges, and password policies...")
     try:
-        import user_account_scanner
         user_data = user_account_scanner.scan_user_accounts()
         vulnerabilities.extend(user_data.get("findings", []))
     except Exception as e:
         log(f"user_account_scanner error: {e}")
         user_data = {"error": str(e)}
 
-    # 6. Deep Network Posture (Firewall, DNS tampering, ARP table, Open listeners)
-    log("Analyzing network posture (Firewall profiles, DNS configuration, ARP table)...")
+    # 6. Deep Network Posture
+    log("Analyzing network posture (DNS integrity, ARP cache, Firewall)...")
     try:
-        import network_security_scanner
         net_sec = network_security_scanner.run_network_security_scan()
         vulnerabilities.extend(net_sec.get("findings", []))
     except Exception as e:
         log(f"network_security_scanner error: {e}")
         net_sec = {"error": str(e)}
 
-    # 7. Network ping sweep + port scanner
-    log("Running LAN discovery & port scan...")
+    # 7. Network Ping Sweep + Port Scan
+    log("Conducting network discovery and port enumeration...")
     try:
-        import network_scanner
         net_result = network_scanner.fast_network_scan()
         local_ip   = network_scanner.get_local_ip()
         active_hosts    = net_result.get("active_hosts", [])
@@ -178,10 +183,9 @@ def run_full_scan() -> dict:
                 "recommendation": f"Enforce firewall rules to block unsolicited inbound access to ports {open_ports} on host {host}."
             })
 
-    # 8. Config Scanner
+    # 8. Configuration Issues
     log("Checking configuration issues and credentials...")
     try:
-        import config_scanner
         raw_config_vulns = config_scanner.scan_configuration_issues(open_ports_map)
         config_vulns = []
         for v in raw_config_vulns:
@@ -221,7 +225,6 @@ def run_generate_report(scan_data: dict | None = None) -> dict:
 
     log("Generating reports (JSON, HTML, genuine PDF) via ReportLab...")
     try:
-        import report_generator
         original_base = report_generator.REPORT_BASE_DIR
         report_generator.REPORT_BASE_DIR = MOCK_USB_DIR
 

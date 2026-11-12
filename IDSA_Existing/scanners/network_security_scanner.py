@@ -142,3 +142,4 @@ def run_network_security_scan():
         "listening_count": len(srv_res["services"]),
         "findings": all_findings
     }
+
