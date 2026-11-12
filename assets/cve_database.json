@@ -1,0 +1,81 @@
+{
+    "CVE-2017-0144": {
+        "description": "The SMBv1 server in Microsoft Windows allows remote attackers to execute arbitrary code via crafted packets, aka EternalBlue.",
+        "severity": "Critical",
+        "affected_software": ["Windows SMB 445", "Microsoft Windows XP", "Windows 7", "Windows Server 2008"],
+        "references": ["https://nvd.nist.gov/vuln/detail/CVE-2017-0144"]
+    },
+    "CVE-2017-0145": {
+        "description": "The SMBv1 server in Microsoft Windows allows remote attackers to execute arbitrary code via crafted packets, aka EternalRomance.",
+        "severity": "Critical",
+        "affected_software": ["Windows SMB 445", "Microsoft Windows XP", "Windows 7"],
+        "references": ["https://nvd.nist.gov/vuln/detail/CVE-2017-0145"]
+    },
+    "CVE-2019-0708": {
+        "description": "BlueKeep: Remote Desktop Services Remote Code Execution Vulnerability in Microsoft Windows. Unauthenticated RCE via RDP port 3389.",
+        "severity": "Critical",
+        "affected_software": ["RDP 3389", "Windows 7", "Windows Server 2008 R2", "Windows XP"],
+        "references": ["https://nvd.nist.gov/vuln/detail/CVE-2019-0708"]
+    },
+    "CVE-2021-41773": {
+        "description": "Path traversal and remote code execution in Apache HTTP Server 2.4.49 via mod_cgi.",
+        "severity": "Critical",
+        "affected_software": ["Apache HTTP Server 2.4.49", "HTTP 80", "HTTPS 443"],
+        "references": ["https://nvd.nist.gov/vuln/detail/CVE-2021-41773"]
+    },
+    "CVE-2022-22719": {
+        "description": "Apache HTTP Server 2.4.52 and earlier mod_lua use of uninitialized value of in r:parsebody enabling denial of service.",
+        "severity": "High",
+        "affected_software": ["Apache HTTP Server", "HTTPS 443", "HTTP 80"],
+        "references": ["https://nvd.nist.gov/vuln/detail/CVE-2022-22719"]
+    },
+    "CVE-2017-5638": {
+        "description": "Apache Struts 2 REST Plugin XStream remote code execution via crafted XML payload on HTTP endpoints.",
+        "severity": "Critical",
+        "affected_software": ["Apache Struts 2", "HTTP 80", "HTTPS 443"],
+        "references": ["https://nvd.nist.gov/vuln/detail/CVE-2017-5638"]
+    },
+    "CVE-2010-4221": {
+        "description": "Multiple stack-based buffer overflows in ProFTPD before 1.3.3g allow remote attackers to execute arbitrary code via FTP telnet IAC sequences.",
+        "severity": "High",
+        "affected_software": ["ProFTPD", "FTP 21"],
+        "references": ["https://nvd.nist.gov/vuln/detail/CVE-2010-4221"]
+    },
+    "CVE-2015-3306": {
+        "description": "ProFTPD through 1.3.5b allows remote unauthenticated attackers to read and write to arbitrary files via CPFR and CPTO commands (mod_copy).",
+        "severity": "High",
+        "affected_software": ["ProFTPD", "FTP 21"],
+        "references": ["https://nvd.nist.gov/vuln/detail/CVE-2015-3306"]
+    },
+    "CVE-2023-38408": {
+        "description": "OpenSSH ssh-agent remote code execution via PKCS#11 provider loading on forwarded SSH connections.",
+        "severity": "Critical",
+        "affected_software": ["OpenSSH", "SSH 22"],
+        "references": ["https://nvd.nist.gov/vuln/detail/CVE-2023-38408"]
+    },
+    "CVE-2022-26134": {
+        "description": "Atlassian Confluence Server and Data Center OGNL injection RCE vulnerability via HTTP requests.",
+        "severity": "Critical",
+        "affected_software": ["Confluence Server", "HTTP 8080", "HTTP 80"],
+        "references": ["https://nvd.nist.gov/vuln/detail/CVE-2022-26134"]
+    },
+    "CVE-2023-1234": {
+        "description": "Vulnerability in Web Server X allowing remote code execution via unauthenticated HTTP POST request.",
+        "severity": "High",
+        "affected_software": ["Web Server X 1.0", "Web Server X 1.1"],
+        "references": ["http://example.com/cve-2023-1234"]
+    },
+    "CVE-2023-5678": {
+        "description": "Buffer overflow in IoT Device Firmware Y leading to denial of service and potential code execution.",
+        "severity": "Medium",
+        "affected_software": ["IoT Device Firmware Y 2.0.0", "IoT Device Firmware Y 2.0.1", "IoT firmware"],
+        "references": ["http://example.com/cve-2023-5678"]
+    },
+    "CVE-1999-0254": {
+        "description": "Telnet service with no authentication or cleartext credential transmission allows trivial interception.",
+        "severity": "High",
+        "affected_software": ["Telnet 23"],
+        "references": ["https://nvd.nist.gov/vuln/detail/CVE-1999-0254"]
+    }
+}
+

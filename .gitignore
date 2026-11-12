@@ -1,0 +1,20 @@
+# ── Node.js ──────────────────────────────────────────────────────────────────
+backend/node_modules/
+frontend/node_modules/
+frontend/build/
+
+# ── Python ───────────────────────────────────────────────────────────────────
+IDSA_Existing/__pycache__/
+IDSA_Existing/*.pyc
+IDSA_Existing/.venv/
+IDSA_Existing/IDSA_REPORTS_scan01_test/
+
+# ── MOCK_USB generated reports (keep the folder, ignore contents) ─────────────
+MOCK_USB/IDSA_REPORTS/*/
+
+# ── OS / editor ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.env
+*.log
+

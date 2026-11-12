@@ -1,0 +1,6 @@
+psutil>=5.9.0
+pyusb>=1.2.1
+python-nmap>=0.7.1
+reportlab>=4.0.0
+customtkinter>=5.2.0
+aiofiles>=23.0.0

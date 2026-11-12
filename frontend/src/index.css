@@ -1,0 +1,64 @@
+/* src/index.css  –  Tailwind directives + global resets */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global base styles */
+@layer base {
+  * { box-sizing: border-box; }
+
+  body {
+    @apply bg-cyber-bg text-cyber-text font-sans antialiased;
+    min-height: 100vh;
+  }
+
+  /* Custom scrollbar to match the dark theme */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #111827; }
+  ::-webkit-scrollbar-thumb { background: #1f2d44; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #00d4ff44; }
+}
+
+@layer components {
+  /* Reusable cyber card */
+  .cyber-card {
+    @apply bg-cyber-surface border border-cyber-border rounded-xl p-5 shadow-lg;
+  }
+
+  /* Glowing accent text */
+  .cyber-accent {
+    @apply text-cyber-accent font-mono;
+    text-shadow: 0 0 8px #00d4ff88;
+  }
+
+  /* Primary button */
+  .btn-primary {
+    @apply px-6 py-3 rounded-lg font-semibold text-sm uppercase tracking-widest
+           bg-cyber-accent text-cyber-bg
+           hover:brightness-110 active:scale-95
+           transition-all duration-200 shadow-md;
+    box-shadow: 0 0 12px #00d4ff55;
+  }
+
+  /* Danger button */
+  .btn-danger {
+    @apply px-6 py-3 rounded-lg font-semibold text-sm uppercase tracking-widest
+           bg-cyber-danger text-white
+           hover:brightness-110 active:scale-95
+           transition-all duration-200;
+  }
+
+  /* Ghost button */
+  .btn-ghost {
+    @apply px-4 py-2 rounded-lg text-sm font-mono border border-cyber-border
+           text-cyber-muted hover:border-cyber-accent hover:text-cyber-accent
+           transition-colors duration-200;
+  }
+
+  /* Risk badge */
+  .badge-high   { @apply bg-cyber-danger/20   text-cyber-danger   border border-cyber-danger/40   px-2 py-0.5 rounded-full text-xs font-mono; }
+  .badge-medium { @apply bg-cyber-warning/20  text-cyber-warning  border border-cyber-warning/40  px-2 py-0.5 rounded-full text-xs font-mono; }
+  .badge-low    { @apply bg-cyber-success/20  text-cyber-success  border border-cyber-success/40  px-2 py-0.5 rounded-full text-xs font-mono; }
+  .badge-info   { @apply bg-cyber-accent/10   text-cyber-accent   border border-cyber-accent/30   px-2 py-0.5 rounded-full text-xs font-mono; }
+}
+
