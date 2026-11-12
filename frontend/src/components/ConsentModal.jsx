@@ -43,7 +43,7 @@ export default function ConsentModal({ onApproved }) {
         {/* Top Gold Bar */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-[#d4af37]" />
 
-        {/* Header with Project Details & Author */}
+        {/* Header with Project Details, Author & Pure Gold Security Shield */}
         <div className="pb-4 border-b border-[#262626]">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-mono tracking-widest text-[#d4af37] uppercase">
@@ -54,13 +54,26 @@ export default function ConsentModal({ onApproved }) {
             </span>
           </div>
 
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white mt-1">
-            IoT Device Security Analyzer <span className="text-[#d4af37]">(IDSA)</span>
-          </h1>
-
-          <p className="text-xs font-mono text-neutral-400 mt-1">
-            Author &amp; Lead Architect: <span className="text-[#d4af37] font-semibold">Rahul S</span>
-          </p>
+          <div className="flex items-center gap-3.5 mt-2">
+            {/* Boxy Security Shield Icon */}
+            <div className="w-10 h-10 bg-black border border-[#d4af37] flex items-center justify-center flex-shrink-0 shadow-[0_0_12px_rgba(212,175,55,0.25)]">
+              <svg
+                className="w-5 h-5 fill-[#d4af37]"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.54-3.15 8.78-7 9.88-3.85-1.1-7-5.34-7-9.88V6.3l7-3.12zm-1 5.82v6h2v-6h-2zm0 8v2h2v-2h-2z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white leading-tight">
+                IoT Device Security Analyzer <span className="text-[#d4af37]">(IDSA)</span>
+              </h1>
+              <p className="text-xs font-mono text-neutral-400 mt-0.5">
+                Author &amp; Lead Architect: <span className="text-[#d4af37] font-semibold">Rahul S</span>
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Project Context & Diagnostic Explanation Paragraph */}
@@ -122,13 +135,14 @@ export default function ConsentModal({ onApproved }) {
           <button
             type="submit"
             disabled={!isFormValid || loading}
-            className={`w-full py-3 rounded-none font-bold text-xs uppercase tracking-widest transition ${
+            className={`w-full py-3 rounded-none font-bold text-xs uppercase tracking-widest transition flex items-center justify-center gap-2 ${
               isFormValid && !loading
                 ? "bg-[#d4af37] hover:bg-[#b8860b] text-black cursor-pointer shadow-[0_0_15px_rgba(212,175,55,0.3)]"
                 : "bg-[#1c1c1c] text-[#555555] border border-[#2e2e2e] cursor-not-allowed"
             }`}
           >
-            {loading ? "Issuing Authorization Token..." : "Authorize & Proceed"}
+            <span>&#9921;</span>
+            <span>{loading ? "Issuing Authorization Token..." : "Authorize & Proceed"}</span>
           </button>
         </form>
 
@@ -143,9 +157,12 @@ export default function ConsentModal({ onApproved }) {
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/90 p-4">
           <div className="bg-[#0c0c0c] border-2 border-[#d4af37] max-w-lg w-full p-6 text-neutral-300 shadow-2xl space-y-4 text-xs leading-relaxed max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#262626] pb-3">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-[#d4af37]">
-                Terms &amp; Security Policies
-              </h2>
+              <div className="flex items-center gap-2">
+                <span className="text-[#d4af37] text-base">&#9921;</span>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-[#d4af37]">
+                  Terms &amp; Security Policies
+                </h2>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowPolicyPopup(false)}
